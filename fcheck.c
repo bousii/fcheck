@@ -26,21 +26,28 @@ main(int argc, char *argv[])
   struct dinode *dip;
   struct superblock *sb;
   struct dirent *de;
+  struct stat statb;
 
   if(argc < 2){
     fprintf(stderr, "Usage: sample fs.img ...\n");
-    exit(1);
+    exit(ERROR_CODE);
   }
 
 
   fsfd = open(argv[1], O_RDONLY);
   if(fsfd < 0){
     perror(argv[1]);
-    exit(1);
+    exit(ERROR_CODE);
   }
 
+  if (fstat(fsfd, &statb) == -1) {
+    perror("fstat");
+    exit(ERROR_CODE);
+  }
+
+  printf("fs.img size: %jd\n", statb.st_size);
   /* Dont hard code the size of file. Use fstat to get the size */
-  addr = mmap(NULL, 524248, PROT_READ, MAP_PRIVATE, fsfd, 0);
+  addr = mmap(NULL, statb.st_size, PROT_READ, MAP_PRIVATE, fsfd, 0);
   if (addr == MAP_FAILED){
 	  perror("mmap failed");
 	  exit(1);
@@ -67,6 +74,9 @@ main(int argc, char *argv[])
  	printf(" inum %d, name %s ", de->inum, de->name);
   	printf("inode  size %d links %d type %d \n", dip[de->inum].size, dip[de->inum].nlink, dip[de->inum].type);
   }
+
+//leave:
+  munmap(addr, statb.st_size);
   exit(0);
 
 }
