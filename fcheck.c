@@ -16,12 +16,20 @@
 
 #define ERROR_CODE 1
 #define ROOTINO 1
+#define T_UNALLOC 0
+
+#define T_DIR 1
+#define T_FILE 2
+#define T_DEV 3
+
+#define I_BUSY 0x1
+#define I_VALID 0x2
 
 
 int
 main(int argc, char *argv[])
 {
-  int i,n,fsfd;
+  int i,n,fsfd,j;
   char *addr;
   struct dinode *dip;
   struct superblock *sb;
@@ -36,7 +44,7 @@ main(int argc, char *argv[])
 
   fsfd = open(argv[1], O_RDONLY);
   if(fsfd < 0){
-    perror(argv[1]);
+    fprintf(stderr, "image not found.\n");
     exit(ERROR_CODE);
   }
 
@@ -73,6 +81,40 @@ main(int argc, char *argv[])
   for (i = 0; i < n; i++,de++){
  	printf(" inum %d, name %s ", de->inum, de->name);
   	printf("inode  size %d links %d type %d \n", dip[de->inum].size, dip[de->inum].nlink, dip[de->inum].type);
+
+    switch (dip[de->inum].type) {
+      case T_DIR:
+      case T_FILE:
+      case T_DEV:
+      case T_UNALLOC:
+      break;
+      default:
+      fprintf(stderr, "ERROR: bad inode.\n");
+      exit(ERROR_CODE);
+    }
+
+    if (dip[de->inum].type == T_UNALLOC) {
+      continue;
+    }
+
+    for (j = 0; j < NDIRECT; j++) {
+      /* If file size is 0 but blocks are allocated */
+      if (dip[de->inum].size == 0 && dip[de->inum].addrs[j] != 0) {
+        fprintf(stderr, "ERROR: bad direct address in inode.\n");
+        exit(ERROR_CODE);
+      }
+      /* If direct block addr is outside fs img range */
+      if (dip[de->inum].addrs[j] != 0 && (dip[de->inum].addrs[j] >= sb->size || dip[de->inum].addrs[j] <= 0)) {
+        fprintf(stderr, "ERROR: bad direct address in inode.\n");
+        exit(ERROR_CODE);
+      }
+    }
+    if (dip[de->inum].addrs[j] != 0 && dip[de->inum].addrs[j] >= sb->size) {
+      fprintf(stderr, "ERROR: bad indirect address in inode.\n");
+      exit(ERROR_CODE);
+    }
+      
+    
   }
 
 //leave:
